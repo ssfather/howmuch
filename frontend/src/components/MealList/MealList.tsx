@@ -13,12 +13,20 @@ interface Meal {
   name: string;
   description: string;
   image?: string;
-  sideDishes?: string[];
+  sideDishes: string[];
   calories: number;
-  nutritionInfo?: {
+  nutritionInfo: {
     protein: number;
     carbs: number;
     fat: number;
+    vitaminA: number;
+    vitaminB: number;
+    vitaminC: number;
+    vitaminD: number;
+    iron: number;
+    calcium: number;
+    fiber: number;
+    sodium: number;
   };
 }
 
@@ -45,8 +53,15 @@ const MealList: React.FC<MealListProps> = ({ selectedDate }) => {
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
       console.log('조회할 날짜:', formattedDate);
       
-      const response = await fetch(`http://localhost:3001/api/meals?date=${formattedDate}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(`http://localhost:3001/api/meals?date=${formattedDate}`, {
+        signal: controller.signal
+      });
       
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         throw new Error('Failed to fetch meals');
       }
@@ -55,16 +70,30 @@ const MealList: React.FC<MealListProps> = ({ selectedDate }) => {
       console.log('서버에서 받은 식사 데이터:', data);
       setMeals(Array.isArray(data) ? data : []);
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+        return;
+      }
       console.error('fetchMeals 에러:', error);
       setMeals([]);
     }
   }, [selectedDate]);
 
   useEffect(() => {
-    console.log('useEffect 실행 시작');
-    fetchMeals();
-    console.log('useEffect 실행 완료');
-  }, [fetchMeals]);
+    let mounted = true;
+
+    const loadData = async () => {
+      if (mounted) {
+        await fetchMeals();
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedDate, fetchMeals]);
 
   const handleAddMeal = async (data: any) => {
     console.log('handleAddMeal 실행, 데이터:', data);
@@ -96,7 +125,7 @@ const MealList: React.FC<MealListProps> = ({ selectedDate }) => {
       const result = await response.json();
       console.log('식사 추가 결과:', result);
       
-      fetchMeals();
+      await fetchMeals();
       setIsModalOpen(false);
     } catch (error) {
       console.error('식사 추가 중 오류:', error);
@@ -115,39 +144,41 @@ const MealList: React.FC<MealListProps> = ({ selectedDate }) => {
               <span>{type.icon}</span>
               <span className="font-medium text-sm">{type.label}</span>
             </div>
-          </div>
-          
-          {meals.filter(meal => meal.type === type.id).map((meal) => (
-            <div 
-              key={meal.id} 
-              className="mt-2 p-3 bg-white bg-opacity-50 rounded-lg"
-              onClick={() => setSelectedMeal(meal)}
-            >
-              <h3 className="font-semibold text-sm">{meal.name}</h3>
-              <p className="text-sm text-gray-600">{meal.description}</p>
-              {meal.image && (
-                <img src={meal.image} alt="식사 사진" className="mt-2 rounded-md w-full" />
-              )}
-            </div>
-          ))}
-          
-          <div className="flex space-x-2 mt-3">
-            <button
-              onClick={() => setSelectedMeal(null)}
-              className="flex-1 py-2 px-3 text-sm bg-white rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              보기
-            </button>
             <button
               onClick={() => {
                 setIsModalOpen(true);
                 setSelectedMealType(type.id);
               }}
-              className="flex-1 py-2 px-3 text-sm bg-white rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-1.5 text-sm bg-white/80 rounded-lg hover:bg-white transition-colors"
             >
-              추가
+              +
             </button>
           </div>
+          
+          {meals.filter(meal => meal.type === type.id).map((meal) => (
+            <div 
+              key={meal.id} 
+              className="mt-2 p-3 bg-white/60 rounded-lg cursor-pointer hover:bg-white/80 transition-all"
+              onClick={() => {
+                console.log('선택된 식사 데이터:', meal);
+                setSelectedMeal(meal);
+              }}
+            >
+              <h3 className="font-medium text-sm">
+                {meal.name || '메뉴 정보 없음'}
+              </h3>
+              
+              {meal.sideDishes && meal.sideDishes.length > 0 && (
+                <p className="text-xs text-gray-600 mt-1">
+                  {meal.sideDishes.join(', ')}
+                </p>
+              )}
+              
+              <p className="text-xs text-gray-500 mt-1">
+                {meal.calories ? `${meal.calories}kcal` : '열량 정보 없음'}
+              </p>
+            </div>
+          ))}
         </div>
       ))}
 

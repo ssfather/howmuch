@@ -30,14 +30,9 @@ export class AppService {
           type: record.mealType,
           name: nutritionData.main_dish,
           description: record.memo || '',
-          image: record.imageUrl,
           sideDishes: nutritionData.side_dishes || [],
           calories: nutritionData.calories,
-          nutritionInfo: {
-            protein: nutritionData.nutrition.protein,
-            carbs: nutritionData.nutrition.carbs,
-            fat: nutritionData.nutrition.fat
-          }
+          nutritionInfo: nutritionData.nutrition
         };
       });
     } catch (error) {
@@ -47,43 +42,51 @@ export class AppService {
   }
 
   async getNutritionByDate(date: string): Promise<NutritionTotal> {
-    const records = await this.mealRecordRepository
-      .createQueryBuilder('meal_record')
-      .where('DATE(meal_record.date) = :date', { date })
-      .getMany();
+    try {
+      // 해당 날짜의 모든 식사 기록 조회
+      const records = await this.mealRecordRepository
+        .createQueryBuilder('meal_record')
+        .where('DATE(meal_record.date) = :date', { date })
+        .getMany();
 
-    const initialValue: NutritionTotal = {
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      vitaminA: 0,
-      vitaminB: 0,
-      vitaminC: 0,
-      vitaminD: 0,
-      iron: 0,
-      calcium: 0,
-      fiber: 0,
-      sodium: 0
-    };
-
-    return records.reduce((acc: NutritionTotal, record) => {
-      const nutrition = JSON.parse(record.nutrition);
-      return {
-        calories: acc.calories + (nutrition.calories || 0),
-        protein: acc.protein + (nutrition.protein || 0),
-        carbs: acc.carbs + (nutrition.carbs || 0),
-        fat: acc.fat + (nutrition.fat || 0),
-        vitaminA: acc.vitaminA + (nutrition.vitaminA || 0),
-        vitaminB: acc.vitaminB + (nutrition.vitaminB || 0),
-        vitaminC: acc.vitaminC + (nutrition.vitaminC || 0),
-        vitaminD: acc.vitaminD + (nutrition.vitaminD || 0),
-        iron: acc.iron + (nutrition.iron || 0),
-        calcium: acc.calcium + (nutrition.calcium || 0),
-        fiber: acc.fiber + (nutrition.fiber || 0),
-        sodium: acc.sodium + (nutrition.sodium || 0)
+      // 초기값 설정
+      const initialValue: NutritionTotal = {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        vitaminA: 0,
+        vitaminB: 0,
+        vitaminC: 0,
+        vitaminD: 0,
+        iron: 0,
+        calcium: 0,
+        fiber: 0,
+        sodium: 0
       };
-    }, initialValue);
+
+      // 모든 식사 기록의 영양소 합산
+      return records.reduce((acc: NutritionTotal, record) => {
+        const nutrition = JSON.parse(record.nutrition);
+        return {
+          calories: acc.calories + (nutrition.calories || 0),
+          protein: acc.protein + (nutrition.nutrition.protein || 0),
+          carbs: acc.carbs + (nutrition.nutrition.carbs || 0),
+          fat: acc.fat + (nutrition.nutrition.fat || 0),
+          vitaminA: acc.vitaminA + (nutrition.nutrition.vitaminA || 0),
+          vitaminB: acc.vitaminB + (nutrition.nutrition.vitaminB || 0),
+          vitaminC: acc.vitaminC + (nutrition.nutrition.vitaminC || 0),
+          vitaminD: acc.vitaminD + (nutrition.nutrition.vitaminD || 0),
+          iron: acc.iron + (nutrition.nutrition.iron || 0),
+          calcium: acc.calcium + (nutrition.nutrition.calcium || 0),
+          fiber: acc.fiber + (nutrition.nutrition.fiber || 0),
+          sodium: acc.sodium + (nutrition.nutrition.sodium || 0)
+        };
+      }, initialValue);
+    } catch (error) {
+      console.error('영양 정보 조회 중 오류:', error);
+      throw error;
+    }
   }
 
   async createMealRecord(data: any) {
