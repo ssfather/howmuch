@@ -97,21 +97,64 @@ export class GptVisionService {
       let content = response.choices[0].message.content;
       console.log('원본 응답 내용:', content);
 
-      // 마크다운 형식 제거
-      if (content.includes('```')) {
-        content = content.replace(/```json\n/, '').replace(/```/g, '');
-      }
-      content = content.trim();
-      console.log('정제된 응답 내용:', content);
-
+      // 응답 정제 과정 개선
       try {
-        const parsedData = JSON.parse(content);
+        // 1. 마크다운 코드 블록 제거
+        content = content.replace(/```json\n?|\n?```/g, '');
+        
+        // 2. 응답에서 첫 번째 '{' 부터 마지막 '}' 까지 추출
+        const startIdx = content.indexOf('{');
+        const endIdx = content.lastIndexOf('}') + 1;
+        
+        if (startIdx === -1 || endIdx === 0) {
+          throw new Error('JSON 형식을 찾을 수 없습니다');
+        }
+
+        const jsonStr = content.slice(startIdx, endIdx);
+        console.log('추출된 JSON 문자열:', jsonStr);
+
+        // 3. JSON 파싱
+        const parsedData = JSON.parse(jsonStr);
         console.log('파싱된 데이터:', parsedData);
-        return parsedData;
+
+        // 4. 기본값 설정 및 데이터 검증
+        const defaultNutrition = {
+          carbs: 0,
+          protein: 0,
+          fat: 0,
+          vitaminA: 0,
+          vitaminB: 0,
+          vitaminC: 0,
+          vitaminD: 0,
+          iron: 0,
+          calcium: 0,
+          fiber: 0,
+          sodium: 0
+        };
+
+        // 5. 응답 데이터 구조화
+        const result = {
+          main_dish: parsedData.main_dish || '알 수 없음',
+          side_dishes: Array.isArray(parsedData.side_dishes) ? parsedData.side_dishes : [],
+          type: parsedData.type || '메인',
+          calories: Number(parsedData.calories) || 0,
+          nutrition: {
+            ...defaultNutrition,
+            ...(parsedData.nutrition || {}),
+          }
+        };
+
+        // 6. 데이터 유효성 최종 확인
+        if (typeof result.main_dish !== 'string' || !Array.isArray(result.side_dishes)) {
+          throw new Error('응답 데이터 형식이 올바르지 않습니다');
+        }
+
+        return result;
+
       } catch (parseError) {
-        console.error('JSON 파싱 에러:', parseError);
-        console.error('파싱 시도한 내용:', content);
-        throw new Error('응답을 JSON으로 파싱할 수 없습니다');
+        console.error('JSON 파싱 또는 데이터 처리 에러:', parseError);
+        console.error('처리하려던 내용:', content);
+        throw new Error(`응답 처리 중 오류: ${parseError.message}`);
       }
     } catch (error) {
       console.error('GPT Vision API Error:', error);

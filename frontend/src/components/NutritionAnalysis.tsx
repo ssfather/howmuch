@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { format } from 'date-fns';
 
 interface NutritionProps {
@@ -27,12 +27,17 @@ interface UserInfo {
   gender: 'male' | 'female';
 }
 
+const USER_INFO_STORAGE_KEY = 'userHealthInfo';
+
 export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) => {
-  const [userInfo, setUserInfo] = useState<UserInfo>({
-    height: 170,
-    weight: 65,
-    age: 25,
-    gender: 'male'
+  const [userInfo, setUserInfo] = useState<UserInfo>(() => {
+    const savedInfo = localStorage.getItem(USER_INFO_STORAGE_KEY);
+    return savedInfo ? JSON.parse(savedInfo) : {
+      height: 170,
+      weight: 65,
+      age: 25,
+      gender: 'male'
+    };
   });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [nutritionTotal, setNutritionTotal] = useState<NutritionTotal>({
@@ -51,23 +56,23 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
   });
 
   // Mifflin-St Jeor 공식으로 BMR 계산
-  const calculateBMR = () => {
+  const calculateBMR = useCallback(() => {
     const { weight, height, age, gender } = userInfo;
     // BMR = (10 × 체중kg) + (6.25 × 키cm) - (5 × 나이) + s(남:+5, 여:-161)
     const base = (10 * weight) + (6.25 * height) - (5 * age);
     return gender === 'male' ? base + 5 : base - 161;
-  };
+  }, [userInfo]);
 
   // 권장 섭취량 계산
-  const calculateRecommended = () => {
+  const calculateRecommended = useCallback(() => {
     const bmr = calculateBMR();
     const dailyCalories = bmr * 1.375; // 보통 활동량 기준
 
     return {
       calories: Math.round(dailyCalories),
       carbs: Math.round(dailyCalories * 0.5 / 4), // 50% 탄수화물
-      protein: Math.round(dailyCalories * 0.3 / 4), // 30% 단백질
-      fat: Math.round(dailyCalories * 0.2 / 9), // 20% 지방
+      protein: Math.round(dailyCalories * 0.2 / 4), // 20% 단백질
+      fat: Math.round(dailyCalories * 0.3 / 9), // 30% 지방
       vitaminA: 900,
       vitaminB: 1.3,
       vitaminC: 90,
@@ -77,13 +82,13 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
       fiber: 25,
       sodium: 2300
     };
-  };
+  }, [calculateBMR, userInfo.gender]);
 
   const [dailyRecommended, setDailyRecommended] = useState(calculateRecommended());
 
   useEffect(() => {
     setDailyRecommended(calculateRecommended());
-  }, [userInfo]);
+  }, [calculateRecommended]);
 
   useEffect(() => {
     const fetchNutritionTotal = async () => {
@@ -105,9 +110,13 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
     fetchNutritionTotal();
   }, [selectedDate]);
 
+  useEffect(() => {
+    localStorage.setItem(USER_INFO_STORAGE_KEY, JSON.stringify(userInfo));
+  }, [userInfo]);
+
   const handleSave = () => {
     setIsEditing(false);
-    // 여기에 신체 정보 저장 로직 추가 가능
+    // localStorage에 저장은 useEffect에서 자동으로 처리됨
   };
 
   const handleChange = (field: keyof UserInfo, value: number | string) => {
@@ -118,8 +127,8 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
+    <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">신체 정보</h2>
           <button
@@ -129,7 +138,7 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
             {isEditing ? '저장' : '수정'}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-2">
           <div className="p-4 bg-white rounded-lg">
             <p className="text-sm text-gray-600">키 (cm)</p>
             {isEditing ? (
@@ -189,9 +198,9 @@ export const NutritionAnalysis: React.FC<NutritionProps> = ({ selectedDate }) =>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         <h2 className="text-lg font-semibold">영양소 섭취 현황</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-2">
           {Object.entries(nutritionTotal).map(([key, value]) => {
             const recommended = dailyRecommended[key as keyof typeof dailyRecommended];
             const percentage = Math.round((value / recommended) * 100);
